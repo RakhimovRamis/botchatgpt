@@ -3,7 +3,8 @@ import aiohttp
 import asyncio
 import logging
 import json
- 
+import re
+
 URL = 'https://api.telegram.org/bot'
 TOKEN_TG = os.getenv("TOKEN_TG")
 TOKEN_CHATGPT = os.getenv("TOKEN_CHATGPT")
@@ -30,7 +31,7 @@ async def send_message(session, chat_id, text, reply_id):
 
 async def send_message_inline_keyboard(session, chat_id, text, reply_id):
     reply_markup = {'inline_keyboard': [[{'text': bot_message['keyboard_clear'], 'callback_data': 'history_clear'}]]}
-    data = {'chat_id': chat_id, 'text': text, 'reply_to_message_id': reply_id, 'reply_markup': json.dumps(reply_markup), 'parse_mode': 'Markdown'}
+    data = {'chat_id': chat_id, 'text': text, 'reply_to_message_id': reply_id, 'reply_markup': json.dumps(reply_markup), 'parse_mode': 'MarkdownV2'}
     await session.post(f'{URL}{TOKEN_TG}/sendMessage', data=data)
 
 async def chatgpt_api(session, chat_id):
@@ -53,9 +54,9 @@ async def callback_query(session, update):
         history_message.setdefault(update['callback_query']['message']['chat']['id'], []).clear()
 
 async def escape_markdown(text):
-    return text.replace('_', r'\_')\
-                .replace('*', r'\*')\
-                .replace('[', r'\[')                       
+    # https://github.com/python-telegram-bot/python-telegram-bot/blob/1a7edd7a5da2959d37198003a65e65ac15272ab0/telegram/helpers.py#L44
+    escape_chars = '([\\\\_\\*\\[\\]\\(\\)\\~>\\#\\+\\-=\\|\\{\\}\\.!])'
+    return re.sub(escape_chars, r"\\\1", text)               
 
 async def main():
     async with aiohttp.ClientSession() as session:
@@ -69,14 +70,18 @@ async def main():
             tasks = []
             for update in updates:
                 if update_id < update['update_id']:
-                    update_id = update['update_id']
+                    update_id = update['update_id']       
                     if update.get('callback_query'):
                         await callback_query(session, update)
                         break
 
                     logging.info(f"User id {update['message']['chat']['id']} message: {update['message'].get('text')}")
                     tasks.append(asyncio.create_task(send_chat_action(session=session, chat_id=update['message']['chat']['id'])))
-                    if not update['message'].get('entities'):
+                    if update['message'].get('entities') and update['message']['entities'][0]['type'] == 'bot_command':
+                        tasks.append(asyncio.create_task(send_message(session=session, chat_id=update['message']['chat']['id'],
+                                                                      text=bot_message['start'],
+                                                                      reply_id=update['message']['message_id'])))
+                    else:
                         if update['message']['chat']['id'] in allowed_chat_id:
                             tasks.append(asyncio.create_task(send_chatgpt_answer(session=session, chat_id=update['message']['chat']['id'],
                                                                                  prompt=update['message'].get('text'),
@@ -88,11 +93,7 @@ async def main():
                                 text = bot_message['correct_pin_code']
                             tasks.append(asyncio.create_task(send_message(session=session, chat_id=update['message']['chat']['id'],
                                                                           text=text,
-                                                                          reply_id=update['message']['message_id'])))
-                    else:
-                        tasks.append(asyncio.create_task(send_message(session=session, chat_id=update['message']['chat']['id'],
-                                                                      text=bot_message['start'],
-                                                                      reply_id=update['message']['message_id'])))
+                                                                          reply_id=update['message']['message_id'])))              
             asyncio.gather(*tasks)
  
 asyncio.run(main())
