@@ -1,11 +1,23 @@
 # Telegram bot ChatGPT
 
+
+
+```
+$pip install aiohttp
+$python3 main.py \
+    <Telegram bot token> \
+    <ChatGPT api key> \
+    <your pin code>
+```
+
+Docker
+
 ```
 $docker build . --tag chatbot
 $docker run -d \
-    -e TOKEN_TG=<Telegram bot api key> \
-    -e TOKEN_CHATGPT=<ChatGPT api key> \
-    -e PINCODE=<your pin code access chatgpt> \
+    -e TOKEN=<Telegram bot token> \
+    -e API_KEY=<ChatGPT api key> \
+    -e PINCODE=<your pin code> \
     chatbot
 
 ```
