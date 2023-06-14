@@ -2,6 +2,10 @@
 
 
 
+https://github.com/RakhimovRamis/botchatgpt/assets/83058680/699da493-0e6d-4239-af4a-5d8f41002697
+
+
+
 ```
 $pip install aiohttp
 $python3 main.py \
