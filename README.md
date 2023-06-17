@@ -1,9 +1,6 @@
 # Telegram bot ChatGPT
 
-
-
-https://github.com/RakhimovRamis/botchatgpt/assets/83058680/699da493-0e6d-4239-af4a-5d8f41002697
-
+![output](https://github.com/RakhimovRamis/botchatgpt/assets/83058680/9c0cbf72-11ff-4a72-bae7-56ad578fe5c1)
 
 
 ```
