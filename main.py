@@ -18,36 +18,33 @@ bot_message = {
 
 class TBotAPI:
     URL = 'https://api.telegram.org/bot'
- 
+
     def __init__(self, token):
         self.token = token
- 
+
     async def get_updates(self, offset=0):
         await asyncio.sleep(.5)
         async with self.session.get(f'{self.URL}{self.token}/getUpdates?offset={offset}') as response:
             updates = await response.json()
-            return updates['result']
- 
+            return updates.get('result')
+
     async def send_chat_action(self, chat_id):
         await self.session.get(f'{self.URL}{self.token}/sendChatAction?chat_id={chat_id}&action=typing')
     
-    async def _send_message(self, method_name, data):
+    async def _send_message(self, method_name, data, chat_id, text, reply_markup):
+        data.update({'chat_id': chat_id, 'text': await Utils.escape_markdown(text), 'parse_mode': 'MarkdownV2'})
+        if reply_markup: data.update({'reply_markup': json.dumps(reply_markup)})
         async with self.session.post(f'{self.URL}{self.token}/{method_name}', data=data) as response:
             result = await response.json()
             return result
 
     async def send_message(self, chat_id, text, reply_id, reply_markup=None):
-        data = {'chat_id': chat_id, 'text': await Utils.escape_markdown(text),
-                'reply_to_message_id': reply_id, 'parse_mode': 'MarkdownV2'
-            }
-        return await self._send_message('sendMessage', data)
+        data = {'reply_to_message_id': reply_id}
+        return await self._send_message('sendMessage', data, chat_id, text, reply_markup)
     
     async def edit_messgae_text(self, chat_id, text, message_id, reply_markup=None):
-        data = {'chat_id': chat_id, 'text': await Utils.escape_markdown(text),
-                'message_id': message_id, 'reply_markup': json.dumps(reply_markup),
-                'parse_mode': 'MarkdownV2'
-            }
-        return await self._send_message('editMessageText', data)
+        data = {'message_id': message_id}
+        return await self._send_message('editMessageText', data, chat_id, text, reply_markup)
 
     async def inline_keyboard(self):
         return {'inline_keyboard': [[{'text': bot_message['keyboard_clear'], 'callback_data': 'history_clear'}]]}
@@ -56,7 +53,7 @@ class TBotAPI:
         await self.session.get(f"{self.URL}{self.token}/answerCallbackQuery?callback_query_id={update['callback_query']['id']}&text={bot_message['keyboard_clear']}")
         if update['callback_query']['data'] == 'history_clear':
             history_message.setdefault(update['callback_query']['message']['chat']['id'], []).clear()
- 
+
 class ChatGPT(TBotAPI):
     def __init__(self, token, api_key):
         super().__init__(token)
@@ -127,13 +124,11 @@ class ChatBot(ChatGPT):
         async with aiohttp.ClientSession() as session:
             self.session = session
             update_id = 0
-            update = await self.get_updates()
-            if update:
+            if (update := await self.get_updates()):
                 update_id = update[-1]['update_id']
             while True:
                 await asyncio.sleep(1)
-                try:
-                    updates = await self.get_updates(offset=update_id)
+                if (updates := await self.get_updates(offset=update_id)):
                     tasks = []
                     for update in updates:
                         if update_id < update['update_id']:
@@ -144,8 +139,6 @@ class ChatBot(ChatGPT):
                             if update.get('message'): #my_chat_member
                                 tasks = await self.create_message_tasks(update, tasks)
                     asyncio.gather(*tasks)
-                except aiohttp.ClientConnectorError as e:
-                    logging.error(e)
  
 if __name__ == '__main__':
     token = os.getenv("TOKEN") or sys.argv[1]
